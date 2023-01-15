@@ -1,0 +1,7 @@
+<launch>
+
+    <arg name="project" default="sub_data"/>
+    
+    <node pkg="$(arg project)" type="data_read"   name="data_read"    output="screen" 	respawn="true"/>
+    
+</launch>
