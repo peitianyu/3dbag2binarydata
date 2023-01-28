@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iostream>
 
+
 struct VelodynePointXYZIRT
 {
     PCL_ADD_POINT4D
@@ -161,7 +162,7 @@ public:
     void imuHandler(const sensor_msgs::Imu::ConstPtr &imuMsg)
     {
         std::cout<<"imuHandler"<<std::endl;
-        uint64_t time_stamp = uint64_t(imuMsg->header.stamp.toSec() * 1e6);
+        double time_stamp = imuMsg->header.stamp.toSec();
         Eigen::Vector3d acc(imuMsg->linear_acceleration.x, imuMsg->linear_acceleration.y, imuMsg->linear_acceleration.z);
 
         Eigen::Vector3d gyr(imuMsg->angular_velocity.x, imuMsg->angular_velocity.y, imuMsg->angular_velocity.z);
@@ -169,7 +170,7 @@ public:
         Eigen::Quaterniond q_from(imuMsg->orientation.w, imuMsg->orientation.x, imuMsg->orientation.y, imuMsg->orientation.z);
         Eigen::Vector3d rot = Quaterniond2Rot(q_from);
 
-        m_ofs_imu.write(reinterpret_cast<const char *>(&time_stamp), sizeof(uint64_t));
+        m_ofs_imu.write(reinterpret_cast<const char *>(&time_stamp), sizeof(double));
 
         m_ofs_imu.write(reinterpret_cast<const char *>(&acc(0)), sizeof(double));
         m_ofs_imu.write(reinterpret_cast<const char *>(&acc(1)), sizeof(double));
@@ -208,12 +209,12 @@ public:
     void gpsHandler(const nav_msgs::Odometry::ConstPtr &gpsMsg)
     {
         std::cout<<"gpsHandler"<<std::endl;
-        uint64_t time_stamp = uint64_t(gpsMsg->header.stamp.toSec() * 1e6);
+        double time_stamp = gpsMsg->header.stamp.toSec();
         double x = gpsMsg->pose.pose.position.x;
         double y = gpsMsg->pose.pose.position.y;
         double z = gpsMsg->pose.pose.position.z;
 
-        m_ofs_gps.write(reinterpret_cast<const char *>(&time_stamp), sizeof(uint64_t));
+        m_ofs_gps.write(reinterpret_cast<const char *>(&time_stamp), sizeof(double));
 
         m_ofs_gps.write(reinterpret_cast<const char *>(&x), sizeof(double));
         m_ofs_gps.write(reinterpret_cast<const char *>(&y), sizeof(double));
@@ -270,12 +271,12 @@ public:
         timeScanCur = cloudHeader.stamp.toSec();
         timeScanEnd = timeScanCur + laserCloudIn->points.back().time;
 
-        uint64_t time_stamp = uint64_t(cloudHeader.stamp.toSec() * 1e6);
-        uint64_t scan_time = uint64_t(laserCloudIn->points.back().time * 1e6);
+        double time_stamp = cloudHeader.stamp.toSec();
+        double scan_time = laserCloudIn->points.back().time;
         uint64_t point_size = laserCloudIn->points.size();
 
-        m_ofs_cloud.write(reinterpret_cast<const char *>(&time_stamp), sizeof(uint64_t));
-        m_ofs_cloud.write(reinterpret_cast<const char *>(&scan_time), sizeof(uint64_t));
+        m_ofs_cloud.write(reinterpret_cast<const char *>(&time_stamp), sizeof(double));
+        m_ofs_cloud.write(reinterpret_cast<const char *>(&scan_time), sizeof(double));
         m_ofs_cloud.write(reinterpret_cast<const char *>(&point_size), sizeof(uint64_t));
         for (auto &p : laserCloudIn->points)
         {
