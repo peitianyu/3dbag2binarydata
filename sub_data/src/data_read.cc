@@ -36,6 +36,26 @@ using PointXYZIRT = VelodynePointXYZIRT;
 
 const int queueLength = 2000;
 
+struct TimedPoint3D
+{
+    double time_stamp;
+    Eigen::Vector3d point;
+
+    TimedPoint3D(double t, Eigen::Vector3d p) : time_stamp(t), point(p) {}
+
+    TimedPoint3D() : time_stamp(0), point(Eigen::Vector3d::Zero()) {}
+};
+
+struct CloudPoint
+{
+    uint index;
+    TimedPoint3D timed_point;
+
+    CloudPoint(uint i, TimedPoint3D p) : index(i), timed_point(p) {}
+
+    CloudPoint() : index(0), timed_point(TimedPoint3D()) {}
+};
+
 class ImageProjection : public ParamServer
 {
 private:
@@ -98,9 +118,9 @@ public:
         subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2>(pointCloudTopic, 5, &ImageProjection::cloudHandler, this, ros::TransportHints().tcpNoDelay());
         subGPS = nh.subscribe<nav_msgs::Odometry>(gpsTopic, 200, &ImageProjection::gpsHandler, this, ros::TransportHints().tcpNoDelay());
 
-        m_ofs_imu.open("/root/3d_laser_slam/data/imu.sensor", std::ios::binary);
-        m_ofs_gps.open("/root/3d_laser_slam/data/gps.sensor", std::ios::binary);
-        m_ofs_cloud.open("/root/3d_laser_slam/data/cloud.sensor", std::ios::binary);
+        m_ofs_imu.open("/root/3dslam_ws/src/sub_data/data/imu.sensor", std::ios::binary);
+        m_ofs_gps.open("/root/3dslam_ws/src/sub_data/data/gps.sensor", std::ios::binary);
+        m_ofs_cloud.open("/root/3dslam_ws/src/sub_data/data/cloud.sensor", std::ios::binary);
 
         // 初始化
         allocateMemory();
@@ -161,7 +181,7 @@ public:
 
     void imuHandler(const sensor_msgs::Imu::ConstPtr &imuMsg)
     {
-        std::cout<<"imuHandler"<<std::endl;
+        // std::cout<<"imuHandler"<<std::endl;
         double time_stamp = imuMsg->header.stamp.toSec();
         Eigen::Vector3d acc(imuMsg->linear_acceleration.x, imuMsg->linear_acceleration.y, imuMsg->linear_acceleration.z);
 
@@ -274,18 +294,28 @@ public:
         double time_stamp = cloudHeader.stamp.toSec();
         double scan_time = laserCloudIn->points.back().time;
         uint64_t point_size = laserCloudIn->points.size();
-
         m_ofs_cloud.write(reinterpret_cast<const char *>(&time_stamp), sizeof(double));
         m_ofs_cloud.write(reinterpret_cast<const char *>(&scan_time), sizeof(double));
         m_ofs_cloud.write(reinterpret_cast<const char *>(&point_size), sizeof(uint64_t));
+
+
+        std::map<uint, std::vector<TimedPoint3D>> map_points;
         for (auto &p : laserCloudIn->points)
+            map_points[p.ring].push_back(TimedPoint3D(p.time + time_stamp, Eigen::Vector3d(p.x, p.y, p.z)));
+
+        for (auto &p : map_points)
         {
-            double x = p.x;
-            double y = p.y;
-            double z = p.z;
-            m_ofs_cloud.write(reinterpret_cast<const char *>(&x), sizeof(double));
-            m_ofs_cloud.write(reinterpret_cast<const char *>(&y), sizeof(double));
-            m_ofs_cloud.write(reinterpret_cast<const char *>(&z), sizeof(double));
+            for (uint i = 0; i < p.second.size(); i++)
+            {
+                uint index = p.first * 1800 + i;
+                CloudPoint cloud_point(index, p.second[i]);
+
+                m_ofs_cloud.write(reinterpret_cast<const char *>(&cloud_point), sizeof(CloudPoint));
+                if(index%100==0)
+                    std::cout << std::fixed << std::setprecision(9) << " " << cloud_point.index << " " << cloud_point.timed_point.time_stamp
+                          << " " << cloud_point.timed_point.point.transpose() << std::endl;
+            }
+            
         }
 
         return true;
